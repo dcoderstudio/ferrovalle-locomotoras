@@ -148,6 +148,7 @@ export default function KanbanApp() {
           const stored = localStorage.getItem('ferrovalle-locomotoras');
           if (stored) setLocomotoraList(JSON.parse(stored));
         } catch {}
+        setDataLoaded(true);
         return;
       }
       setSyncStatus('syncing');
