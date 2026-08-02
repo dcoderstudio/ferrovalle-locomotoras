@@ -1,46 +1,44 @@
-export type ChassisStatus =
-  | 'recibido'
-  | 'diagnostico'
-  | 'en-reparacion'
-  | 'acabados'
-  | 'inspeccion'
-  | 'entregado';
+export type Phase =
+  | 'arribo'
+  | 'desmontaje'
+  | 'reparacion'
+  | 'limpieza'
+  | 'ensamble-electrico'
+  | 'ensamble-estructural'
+  | 'pintura'
+  | 'pruebas'
+  | 'despacho';
 
-export type ChassisSize = 'pequeño' | 'mediano' | 'grande' | 'extra-grande';
-export type ChassisCondition = 'bueno' | 'moderado' | 'severo' | 'critico';
+export const PHASES: Array<{ id: Phase; label: string }> = [
+  { id: 'arribo', label: 'Arribo a Taller' },
+  { id: 'desmontaje', label: 'Desmontaje de Partes y Componentes' },
+  { id: 'reparacion', label: 'Reparación' },
+  { id: 'limpieza', label: 'Limpieza' },
+  { id: 'ensamble-electrico', label: 'Ensamble Eléctrico' },
+  { id: 'ensamble-estructural', label: 'Ensamble Estructural' },
+  { id: 'pintura', label: 'Pintura' },
+  { id: 'pruebas', label: 'Pruebas' },
+  { id: 'despacho', label: 'Despacho' },
+];
 
-export type SelectedService = {
-  serviceId: string;
-  quantity: number;
-  selectedSubOptions?: string[];
-};
+export function emptyPhotosByPhase(): Record<Phase, string[]> {
+  return PHASES.reduce((acc, p) => {
+    acc[p.id] = [];
+    return acc;
+  }, {} as Record<Phase, string[]>);
+}
 
-export type Chassis = {
+export type Locomotora = {
   id: string;
-  chassisNumber: string;
-  clientName: string;
-  status: ChassisStatus;
-  purchaseOrder: string;
-  size: ChassisSize;
-  condition: ChassisCondition;
-  photosBefore: string[];
-  photosDetail: string[];
-  photosAfter: string[];
+  serialNumber: string;
+  model: string;
+  brand: string;
+  phase: Phase;
+  photosByPhase: Record<Phase, string[]>;
   commitmentDate: string;
   deliveryDate: string;
-  selectedServices: SelectedService[];
-  finalPrice: number | null;
   notes: string;
-  createdAt: string;
-  completedServices: string[];
-  approvedServices?: string[];
-  priority: boolean;
   requestedBy: string;
-  pdfPurchaseOrder: string;
-  pdfPurchaseOrderName: string;
-  pdfQuotation: string;
-  pdfQuotationName: string;
-  diagnosedBy?: string;
-  diagnosedAt?: string;
-  patio?: string;
+  createdAt: string;
+  priority: boolean;
 };

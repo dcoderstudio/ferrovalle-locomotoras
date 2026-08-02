@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import type { Chassis } from '../../types';
+import type { Locomotora } from '../../types';
+
+const DATA_KEY = 'locomotoras';
+const PHOTO_PREFIX = 'locomotoras-';
 
 function getClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
@@ -17,50 +20,44 @@ export async function GET(request: Request) {
     if (!db) return NextResponse.json({ error: 'not_configured', service_key: !!process.env.SUPABASE_SERVICE_KEY, anon_key: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY });
     const { error } = await db
       .from('app_data')
-      .upsert({ key: 'chassis', value: [{ debug: true, t: Date.now() }], updated_at: new Date().toISOString() });
+      .upsert({ key: DATA_KEY, value: [{ debug: true, t: Date.now() }], updated_at: new Date().toISOString() });
     return NextResponse.json({ write_error: error?.message ?? null, write_code: error?.code ?? null, ok: !error });
   }
 
   if (!db) return NextResponse.json({ error: 'not_configured' }, { status: 503 });
 
-  // Load structural list (no photos)
   const { data: listData, error: listError } = await db
     .from('app_data')
     .select('value')
-    .eq('key', 'chassis');
+    .eq('key', DATA_KEY);
   if (listError) return NextResponse.json({ error: listError.message }, { status: 500 });
 
-  const chassisList: Chassis[] = Array.isArray(listData?.[0]?.value) ? listData[0].value : [];
-  if (chassisList.length === 0) return NextResponse.json([]);
+  const locomotoraList: Locomotora[] = Array.isArray(listData?.[0]?.value) ? listData[0].value : [];
+  if (locomotoraList.length === 0) return NextResponse.json([]);
 
-  // Load per-chassis photo rows (key = 'chassis-{id}')
   const { data: photoRows } = await db
     .from('app_data')
     .select('key, value')
-    .like('key', 'chassis-%');
+    .like('key', `${PHOTO_PREFIX}%`);
 
-  const photoMap: Record<string, { photosBefore: string[]; photosDetail: string[]; photosAfter: string[] }> = {};
+  const photoMap: Record<string, Record<string, string[]>> = {};
   for (const row of photoRows ?? []) {
-    const id = row.key.slice('chassis-'.length);
+    const id = row.key.slice(PHOTO_PREFIX.length);
     photoMap[id] = row.value;
   }
 
-  // Merge: per-chassis photos take priority over any photos stored inline (legacy)
-  const merged = chassisList.map((c: Chassis) => {
-    const photos = photoMap[c.id];
-    if (!photos) return c;
+  const merged = locomotoraList.map((l: Locomotora) => {
+    const photos = photoMap[l.id];
+    if (!photos) return l;
     return {
-      ...c,
-      photosBefore: photos.photosBefore ?? c.photosBefore,
-      photosDetail: photos.photosDetail ?? c.photosDetail,
-      photosAfter:  photos.photosAfter  ?? c.photosAfter,
+      ...l,
+      photosByPhase: { ...l.photosByPhase, ...photos },
     };
   });
 
   return NextResponse.json(merged);
 }
 
-// Save full structural list (photos stripped by caller)
 export async function POST(request: Request) {
   const db = getClient();
   if (!db) return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
@@ -68,7 +65,7 @@ export async function POST(request: Request) {
     const list = await request.json();
     const { error } = await db
       .from('app_data')
-      .upsert({ key: 'chassis', value: list, updated_at: new Date().toISOString() });
+      .upsert({ key: DATA_KEY, value: list, updated_at: new Date().toISOString() });
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -76,22 +73,17 @@ export async function POST(request: Request) {
   }
 }
 
-// Save photos for a single chassis (body: { id, photosBefore, photosDetail, photosAfter })
 export async function PATCH(request: Request) {
   const db = getClient();
   if (!db) return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
   try {
-    const { id, photosBefore, photosDetail, photosAfter } = await request.json();
+    const { id, photosByPhase } = await request.json();
     if (!id) return NextResponse.json({ ok: false, error: 'missing id' }, { status: 400 });
     const { error } = await db
       .from('app_data')
       .upsert({
-        key: `chassis-${id}`,
-        value: {
-          photosBefore: photosBefore ?? [],
-          photosDetail: photosDetail ?? [],
-          photosAfter:  photosAfter  ?? [],
-        },
+        key: `${PHOTO_PREFIX}${id}`,
+        value: photosByPhase ?? {},
         updated_at: new Date().toISOString(),
       });
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

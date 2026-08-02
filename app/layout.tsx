@@ -9,8 +9,8 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: 'Ferrovalle — Gestión de Chasis',
-  description: 'Sistema de gestión de reparación de chasis de grúas',
+  title: 'Ferrovalle — Gestión de Locomotoras',
+  description: 'Sistema de gestión de reacondicionamiento de locomotoras',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

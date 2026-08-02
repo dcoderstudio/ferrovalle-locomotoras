@@ -26,35 +26,16 @@ function compressImage(file: File): Promise<string> {
     img.src = url;
   });
 }
-import type { Chassis, ChassisStatus, ChassisSize, ChassisCondition } from '../types';
+import type { Locomotora, Phase } from '../types';
+import { PHASES, emptyPhotosByPhase } from '../types';
 import Image from 'next/image';
-import { SIZE_LABELS, SERVICES } from '../services-catalog';
-import { loadChassis, saveChassis, isConfigured } from '../lib/supabase';
-import ChassisModal from './ChassisModal';
-import { PillGrid, DatePicker, SelectDropdown, type PillOption } from './FormControls';
+import { loadLocomotoras, saveLocomotoras, isConfigured } from '../lib/supabase';
+import LocomotoraModal from './LocomotoraModal';
 import { getSession, clearSession, hashPassword, type Session } from '../lib/auth';
 import LoginScreen from './LoginScreen';
 
-const SIZE_OPTIONS: PillOption[] = [
-  { value: 'pequeño', label: '20 ft', sublabel: 'Chasis estándar' },
-  { value: 'grande', label: '40 ft', sublabel: 'Chasis extendido' },
-];
-
-const PATIO_OPTIONS: PillOption[] = [
-  { value: 'fiscal',        label: 'Fiscal' },
-  { value: 'desaduanizado', label: 'Desaduanizado' },
-  { value: 'fi',            label: 'FI' },
-];
-
-const CONDITION_OPTIONS: PillOption[] = [
-  { value: 'bueno', label: 'Buenas condiciones' },
-  { value: 'moderado', label: 'Desgaste moderado' },
-  { value: 'severo', label: 'Deterioro severo' },
-  { value: 'critico', label: 'Estado crítico' },
-];
-
 type ColumnConfig = {
-  id: ChassisStatus;
+  id: Phase;
   label: string;
   border: string;
   borderOver: string;
@@ -66,78 +47,71 @@ type ColumnConfig = {
   emptyBorder: string;
 };
 
+// Tailwind's scanner needs full literal class names in source — cannot build
+// these dynamically from a color-name variable, so each phase is spelled out.
 const COLUMNS: ColumnConfig[] = [
   {
-    id: 'recibido',
-    label: 'Chasis',
-    border: 'border-cyan-400/20',
-    borderOver: 'border-cyan-400/60',
-    headerBg: 'bg-cyan-400/10',
-    headerText: 'text-cyan-300',
-    badge: 'bg-cyan-400/20 text-cyan-300',
-    dot: 'bg-cyan-400',
-    bar: 'bg-gradient-to-r from-cyan-400 to-cyan-300',
-    emptyBorder: 'border-cyan-400/20',
+    id: 'arribo', label: PHASES[0].label,
+    border: 'border-cyan-400/20', borderOver: 'border-cyan-400/60',
+    headerBg: 'bg-cyan-400/10', headerText: 'text-cyan-300',
+    badge: 'bg-cyan-400/20 text-cyan-300', dot: 'bg-cyan-400',
+    bar: 'bg-cyan-400', emptyBorder: 'border-cyan-400/20',
   },
   {
-    id: 'diagnostico',
-    label: 'Diagnóstico',
-    border: 'border-blue-400/20',
-    borderOver: 'border-blue-400/60',
-    headerBg: 'bg-blue-400/10',
-    headerText: 'text-blue-300',
-    badge: 'bg-blue-400/20 text-blue-300',
-    dot: 'bg-blue-400',
-    bar: 'bg-gradient-to-r from-blue-400 to-indigo-300',
-    emptyBorder: 'border-blue-400/20',
+    id: 'desmontaje', label: PHASES[1].label,
+    border: 'border-sky-400/20', borderOver: 'border-sky-400/60',
+    headerBg: 'bg-sky-400/10', headerText: 'text-sky-300',
+    badge: 'bg-sky-400/20 text-sky-300', dot: 'bg-sky-400',
+    bar: 'bg-sky-400', emptyBorder: 'border-sky-400/20',
   },
   {
-    id: 'en-reparacion',
-    label: 'En Reparación',
-    border: 'border-orange-400/20',
-    borderOver: 'border-orange-400/60',
-    headerBg: 'bg-orange-400/10',
-    headerText: 'text-orange-300',
-    badge: 'bg-orange-400/20 text-orange-300',
-    dot: 'bg-orange-400',
-    bar: 'bg-gradient-to-r from-orange-400 to-amber-300',
-    emptyBorder: 'border-orange-400/20',
+    id: 'reparacion', label: PHASES[2].label,
+    border: 'border-blue-400/20', borderOver: 'border-blue-400/60',
+    headerBg: 'bg-blue-400/10', headerText: 'text-blue-300',
+    badge: 'bg-blue-400/20 text-blue-300', dot: 'bg-blue-400',
+    bar: 'bg-blue-400', emptyBorder: 'border-blue-400/20',
   },
   {
-    id: 'acabados',
-    label: 'Pintura y Rotulación',
-    border: 'border-purple-400/20',
-    borderOver: 'border-purple-400/60',
-    headerBg: 'bg-purple-400/10',
-    headerText: 'text-purple-300',
-    badge: 'bg-purple-400/20 text-purple-300',
-    dot: 'bg-purple-400',
-    bar: 'bg-gradient-to-r from-purple-400 to-violet-300',
-    emptyBorder: 'border-purple-400/20',
+    id: 'limpieza', label: PHASES[3].label,
+    border: 'border-teal-400/20', borderOver: 'border-teal-400/60',
+    headerBg: 'bg-teal-400/10', headerText: 'text-teal-300',
+    badge: 'bg-teal-400/20 text-teal-300', dot: 'bg-teal-400',
+    bar: 'bg-teal-400', emptyBorder: 'border-teal-400/20',
   },
   {
-    id: 'inspeccion',
-    label: 'Insp. Final',
-    border: 'border-pink-400/20',
-    borderOver: 'border-pink-400/60',
-    headerBg: 'bg-pink-400/10',
-    headerText: 'text-pink-300',
-    badge: 'bg-pink-400/20 text-pink-300',
-    dot: 'bg-pink-400',
-    bar: 'bg-gradient-to-r from-pink-400 to-rose-300',
-    emptyBorder: 'border-pink-400/20',
+    id: 'ensamble-electrico', label: PHASES[4].label,
+    border: 'border-amber-400/20', borderOver: 'border-amber-400/60',
+    headerBg: 'bg-amber-400/10', headerText: 'text-amber-300',
+    badge: 'bg-amber-400/20 text-amber-300', dot: 'bg-amber-400',
+    bar: 'bg-amber-400', emptyBorder: 'border-amber-400/20',
   },
   {
-    id: 'entregado',
-    label: 'Entregado',
-    border: 'border-emerald-400/20',
-    borderOver: 'border-emerald-400/60',
-    headerBg: 'bg-emerald-400/10',
-    headerText: 'text-emerald-300',
-    badge: 'bg-emerald-400/20 text-emerald-300',
-    dot: 'bg-emerald-400',
-    bar: 'bg-gradient-to-r from-emerald-400 to-green-300',
-    emptyBorder: 'border-emerald-400/20',
+    id: 'ensamble-estructural', label: PHASES[5].label,
+    border: 'border-indigo-400/20', borderOver: 'border-indigo-400/60',
+    headerBg: 'bg-indigo-400/10', headerText: 'text-indigo-300',
+    badge: 'bg-indigo-400/20 text-indigo-300', dot: 'bg-indigo-400',
+    bar: 'bg-indigo-400', emptyBorder: 'border-indigo-400/20',
+  },
+  {
+    id: 'pintura', label: PHASES[6].label,
+    border: 'border-purple-400/20', borderOver: 'border-purple-400/60',
+    headerBg: 'bg-purple-400/10', headerText: 'text-purple-300',
+    badge: 'bg-purple-400/20 text-purple-300', dot: 'bg-purple-400',
+    bar: 'bg-purple-400', emptyBorder: 'border-purple-400/20',
+  },
+  {
+    id: 'pruebas', label: PHASES[7].label,
+    border: 'border-pink-400/20', borderOver: 'border-pink-400/60',
+    headerBg: 'bg-pink-400/10', headerText: 'text-pink-300',
+    badge: 'bg-pink-400/20 text-pink-300', dot: 'bg-pink-400',
+    bar: 'bg-pink-400', emptyBorder: 'border-pink-400/20',
+  },
+  {
+    id: 'despacho', label: PHASES[8].label,
+    border: 'border-emerald-400/20', borderOver: 'border-emerald-400/60',
+    headerBg: 'bg-emerald-400/10', headerText: 'text-emerald-300',
+    badge: 'bg-emerald-400/20 text-emerald-300', dot: 'bg-emerald-400',
+    bar: 'bg-emerald-400', emptyBorder: 'border-emerald-400/20',
   },
 ];
 
@@ -146,11 +120,11 @@ function generateId(): string {
 }
 
 export default function KanbanApp() {
-  const [chassisList, setChassislist] = useState<Chassis[]>([]);
-  const [selectedChassis, setSelectedChassis] = useState<Chassis | null>(null);
+  const [locomotoraList, setLocomotoraList] = useState<Locomotora[]>([]);
+  const [selectedLocomotora, setSelectedLocomotora] = useState<Locomotora | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<ChassisStatus | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<Phase | null>(null);
   const [syncStatus, setSyncStatus] = useState<'local' | 'syncing' | 'synced' | 'error'>('local');
   const [dataLoaded, setDataLoaded] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
@@ -171,22 +145,22 @@ export default function KanbanApp() {
       if (!isConfigured()) {
         setSyncStatus('local');
         try {
-          const stored = localStorage.getItem('ferrovalle-chassis');
-          if (stored) setChassislist(JSON.parse(stored));
+          const stored = localStorage.getItem('ferrovalle-locomotoras');
+          if (stored) setLocomotoraList(JSON.parse(stored));
         } catch {}
         return;
       }
       setSyncStatus('syncing');
-      const cloud = await loadChassis();
+      const cloud = await loadLocomotoras();
       if (cloud !== null) {
-        setChassislist(cloud);
-        try { localStorage.setItem('ferrovalle-chassis', JSON.stringify(cloud)); } catch {}
+        setLocomotoraList(cloud);
+        try { localStorage.setItem('ferrovalle-locomotoras', JSON.stringify(cloud)); } catch {}
         setSyncStatus('synced');
       } else {
         setSyncStatus('error');
         try {
-          const stored = localStorage.getItem('ferrovalle-chassis');
-          if (stored) setChassislist(JSON.parse(stored));
+          const stored = localStorage.getItem('ferrovalle-locomotoras');
+          if (stored) setLocomotoraList(JSON.parse(stored));
         } catch {}
       }
       setDataLoaded(true);
@@ -197,48 +171,48 @@ export default function KanbanApp() {
   useEffect(() => {
     if (!dataLoaded) return;
     // localStorage: guardar inmediatamente (rápido y local)
-    try { localStorage.setItem('ferrovalle-chassis', JSON.stringify(chassisList)); } catch {}
+    try { localStorage.setItem('ferrovalle-locomotoras', JSON.stringify(locomotoraList)); } catch {}
     if (!isConfigured()) return;
     // Supabase: debounce 1.5s para no enviar en cada tecla
     setSyncStatus('syncing');
     const timer = setTimeout(() => {
-      saveChassis(chassisList).then(ok => setSyncStatus(ok ? 'synced' : 'error'));
+      saveLocomotoras(locomotoraList).then(ok => setSyncStatus(ok ? 'synced' : 'error'));
     }, 1500);
     return () => clearTimeout(timer);
-  }, [chassisList, dataLoaded]);
+  }, [locomotoraList, dataLoaded]);
 
-  const handleAddChassis = (data: Omit<Chassis, 'id' | 'createdAt'>) => {
-    setChassislist(prev => [
+  const handleAddLocomotora = (data: Omit<Locomotora, 'id' | 'createdAt'>) => {
+    setLocomotoraList(prev => [
       ...prev,
       { ...data, id: generateId(), createdAt: new Date().toISOString() },
     ]);
     setShowAddModal(false);
   };
 
-  const handleUpdateChassis = (updated: Chassis) => {
-    setChassislist(prev => prev.map(c => (c.id === updated.id ? updated : c)));
-    setSelectedChassis(updated);
+  const handleUpdateLocomotora = (updated: Locomotora) => {
+    setLocomotoraList(prev => prev.map(l => (l.id === updated.id ? updated : l)));
+    setSelectedLocomotora(updated);
   };
 
-  const handleDeleteChassis = (id: string) => {
-    if (!confirm('¿Eliminar este chasis? Esta acción no se puede deshacer.')) return;
-    setChassislist(prev => prev.filter(c => c.id !== id));
-    setSelectedChassis(null);
+  const handleDeleteLocomotora = (id: string) => {
+    if (!confirm('¿Eliminar esta locomotora? Esta acción no se puede deshacer.')) return;
+    setLocomotoraList(prev => prev.filter(l => l.id !== id));
+    setSelectedLocomotora(null);
   };
 
   const handleTogglePriority = (id: string) => {
-    setChassislist(prev =>
-      prev.map(c => c.id === id ? { ...c, priority: !c.priority } : c)
+    setLocomotoraList(prev =>
+      prev.map(l => l.id === id ? { ...l, priority: !l.priority } : l)
     );
   };
 
-  const handleDrop = (col: ChassisStatus) => {
+  const handleDrop = (col: Phase) => {
     if (!draggedId) return;
-    setChassislist(prev =>
-      prev.map(c => {
-        if (c.id !== draggedId) return c;
-        const updated = { ...c, status: col };
-        if (col === 'entregado' && !c.deliveryDate) {
+    setLocomotoraList(prev =>
+      prev.map(l => {
+        if (l.id !== draggedId) return l;
+        const updated = { ...l, phase: col };
+        if (col === 'despacho' && !l.deliveryDate) {
           updated.deliveryDate = new Date().toISOString().split('T')[0];
         }
         return updated;
@@ -248,8 +222,8 @@ export default function KanbanApp() {
     setDragOverCol(null);
   };
 
-  const active = chassisList.filter(c => c.status !== 'entregado').length;
-  const delivered = chassisList.filter(c => c.status === 'entregado').length;
+  const active = locomotoraList.filter(l => l.phase !== 'despacho').length;
+  const delivered = locomotoraList.filter(l => l.phase === 'despacho').length;
 
   if (!authChecked) return null;
   if (!session) return <LoginScreen onLogin={() => setSession(getSession())} />;
@@ -274,14 +248,14 @@ export default function KanbanApp() {
             className="shrink-0"
           />
           <div className="w-px h-6 bg-white/10 shrink-0" />
-          <p className="text-purple-300/50 text-xs hidden sm:block">Gestión de Chasis de Grúas</p>
+          <p className="text-purple-300/50 text-xs hidden sm:block">Gestión de Locomotoras</p>
         </div>
 
         <div className="flex items-center gap-5">
           <div className="hidden sm:flex items-center gap-5 text-xs">
-            <Stat dot="bg-slate-500" label="total" value={chassisList.length} valueColor="text-white" />
-            <Stat dot="bg-orange-400" label="activos" value={active} valueColor="text-orange-300" />
-            <Stat dot="bg-emerald-400" label="entregados" value={delivered} valueColor="text-emerald-300" />
+            <Stat dot="bg-slate-500" label="total" value={locomotoraList.length} valueColor="text-white" />
+            <Stat dot="bg-orange-400" label="activas" value={active} valueColor="text-orange-300" />
+            <Stat dot="bg-emerald-400" label="despachadas" value={delivered} valueColor="text-emerald-300" />
             {syncStatus !== 'local' && (
               <span className={`flex items-center gap-1.5 text-xs ${
                 syncStatus === 'synced' ? 'text-emerald-400' :
@@ -306,7 +280,7 @@ export default function KanbanApp() {
               style={{ background: 'linear-gradient(135deg, #f97316, #c2410c)' }}
             >
               <span className="text-base leading-none font-light">+</span>
-              <span>Agregar Chasis</span>
+              <span>Agregar Locomotora</span>
             </button>
           )}
 
@@ -330,7 +304,7 @@ export default function KanbanApp() {
                 <div className="px-4 py-3 border-b border-white/[0.06]">
                   <p className="text-white text-sm font-semibold">{session.userName}</p>
                   <p className="text-xs mt-0.5 font-medium" style={{ color: session.userRole === 'diagnostico' ? '#0ea5e9' : '#8b5cf6' }}>
-                    {session.userRole === 'diagnostico' ? 'Personal de Diagnóstico' : 'Administrador'}
+                    {session.userRole === 'diagnostico' ? 'Personal de Revisión' : 'Administrador'}
                   </p>
                 </div>
                 <button
@@ -360,7 +334,7 @@ export default function KanbanApp() {
           </svg>
           <input
             className="w-full bg-[#0e1420] border border-white/[0.08] rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/40"
-            placeholder="Buscar por número de chasis u OC..."
+            placeholder="Buscar por número de serie, modelo o marca..."
             value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
             onFocus={() => setSearchOpen(true)}
@@ -375,43 +349,44 @@ export default function KanbanApp() {
         {/* Search results dropdown */}
         {searchOpen && searchQuery.trim() && (() => {
           const q = searchQuery.toLowerCase();
-          const results = chassisList.filter(c =>
-            c.chassisNumber.toLowerCase().includes(q) ||
-            c.purchaseOrder.toLowerCase().includes(q)
+          const results = locomotoraList.filter(l =>
+            l.serialNumber.toLowerCase().includes(q) ||
+            l.model.toLowerCase().includes(q) ||
+            l.brand.toLowerCase().includes(q)
           );
-          const colLabel = (status: ChassisStatus) =>
-            COLUMNS.find(c => c.id === status)?.label ?? status;
-          const colBadge = (status: ChassisStatus) =>
-            COLUMNS.find(c => c.id === status);
+          const colLabel = (phase: Phase) =>
+            COLUMNS.find(c => c.id === phase)?.label ?? phase;
+          const colBadge = (phase: Phase) =>
+            COLUMNS.find(c => c.id === phase);
           return (
             <div className="absolute left-0 right-0 top-full mt-1 max-w-md rounded-xl border border-white/[0.10] shadow-2xl shadow-black/60 z-30 overflow-hidden"
               style={{ background: '#0e1420' }}>
               {results.length === 0 ? (
                 <div className="px-4 py-4 text-sm text-slate-500 text-center">
-                  No se encontró ningún chasis
+                  No se encontró ninguna locomotora
                 </div>
               ) : (
-                results.slice(0, 8).map(chassis => {
-                  const col = colBadge(chassis.status);
+                results.slice(0, 8).map(loco => {
+                  const col = colBadge(loco.phase);
                   return (
                     <button
-                      key={chassis.id}
-                      onMouseDown={() => { setSelectedChassis(chassis); setSearchQuery(''); setSearchOpen(false); }}
+                      key={loco.id}
+                      onMouseDown={() => { setSelectedLocomotora(loco); setSearchQuery(''); setSearchOpen(false); }}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors text-left border-b border-white/[0.04] last:border-0"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="text-white font-semibold text-sm">#{chassis.chassisNumber}</p>
-                          {chassis.priority && (
+                          <p className="text-white font-semibold text-sm">#{loco.serialNumber}</p>
+                          {loco.priority && (
                             <span className="text-orange-400 text-xs">🚩</span>
                           )}
                         </div>
-                        {chassis.purchaseOrder && session?.userRole !== 'diagnostico' && (
-                          <p className="text-slate-600 text-xs mt-0.5">{chassis.purchaseOrder}</p>
+                        {(loco.brand || loco.model) && (
+                          <p className="text-slate-600 text-xs mt-0.5">{[loco.brand, loco.model].filter(Boolean).join(' · ')}</p>
                         )}
                       </div>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${col?.badge}`}>
-                        {colLabel(chassis.status)}
+                        {colLabel(loco.phase)}
                       </span>
                     </button>
                   );
@@ -426,7 +401,7 @@ export default function KanbanApp() {
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-5 pt-2">
         <div className="flex gap-4 h-full" style={{ minWidth: 'max-content' }}>
           {COLUMNS.map(col => {
-            const items = chassisList.filter(c => c.status === col.id);
+            const items = locomotoraList.filter(l => l.phase === col.id);
             const isOver = dragOverCol === col.id;
             return (
               <div
@@ -462,18 +437,18 @@ export default function KanbanApp() {
 
                 {/* Cards */}
                 <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5">
-                  {[...items].sort((a, b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0)).map(chassis => (
-                    <ChassisCard
-                      key={chassis.id}
-                      chassis={chassis}
-                      isDragging={draggedId === chassis.id}
+                  {[...items].sort((a, b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0)).map(loco => (
+                    <LocomotoraCard
+                      key={loco.id}
+                      loco={loco}
+                      isDragging={draggedId === loco.id}
                       bar={col.bar}
                       canInteract={session?.userRole !== 'diagnostico'}
-                      onDragStart={() => setDraggedId(chassis.id)}
+                      onDragStart={() => setDraggedId(loco.id)}
                       onDragEnd={() => { setDraggedId(null); setDragOverCol(null); }}
-                      onClick={() => setSelectedChassis(chassis)}
-                      onTogglePriority={() => handleTogglePriority(chassis.id)}
-                      onTouchDragOver={c => { setDraggedId(chassis.id); setDragOverCol(c); }}
+                      onClick={() => setSelectedLocomotora(loco)}
+                      onTogglePriority={() => handleTogglePriority(loco.id)}
+                      onTouchDragOver={c => { setDraggedId(loco.id); setDragOverCol(c); }}
                       onTouchDrop={c => { handleDrop(c); }}
                     />
                   ))}
@@ -481,7 +456,7 @@ export default function KanbanApp() {
                     <div
                       className={`flex-1 flex items-center justify-center py-10 rounded-xl border-2 border-dashed ${col.emptyBorder} mt-1`}
                     >
-                      <p className={`text-xs ${col.headerText} opacity-30`}>Sin chasis</p>
+                      <p className={`text-xs ${col.headerText} opacity-30`}>Sin locomotoras</p>
                     </div>
                   )}
                 </div>
@@ -492,18 +467,17 @@ export default function KanbanApp() {
       </div>
 
       {/* Modals */}
-      {selectedChassis && (
-        <ChassisModal
-          chassis={selectedChassis}
-          onUpdate={handleUpdateChassis}
-          onDelete={handleDeleteChassis}
-          onClose={() => setSelectedChassis(null)}
+      {selectedLocomotora && (
+        <LocomotoraModal
+          loco={selectedLocomotora}
+          onUpdate={handleUpdateLocomotora}
+          onDelete={handleDeleteLocomotora}
+          onClose={() => setSelectedLocomotora(null)}
           userRole={session?.userRole ?? 'admin'}
-          userName={session?.userName ?? ''}
         />
       )}
       {showAddModal && (
-        <AddChassisModal onAdd={handleAddChassis} onClose={() => setShowAddModal(false)} />
+        <AddLocomotoraModal onAdd={handleAddLocomotora} onClose={() => setShowAddModal(false)} />
       )}
       {showChangePassword && (
         <ChangePasswordModal
@@ -538,10 +512,10 @@ function Stat({
   );
 }
 
-// ─── Chassis Card ─────────────────────────────────────────────────────────────
+// ─── Locomotora Card ──────────────────────────────────────────────────────────
 
-function ChassisCard({
-  chassis,
+function LocomotoraCard({
+  loco,
   isDragging,
   bar,
   canInteract = true,
@@ -552,7 +526,7 @@ function ChassisCard({
   onTouchDragOver,
   onTouchDrop,
 }: {
-  chassis: Chassis;
+  loco: Locomotora;
   isDragging: boolean;
   bar: string;
   canInteract?: boolean;
@@ -560,8 +534,8 @@ function ChassisCard({
   onDragEnd: () => void;
   onClick: () => void;
   onTogglePriority: () => void;
-  onTouchDragOver: (col: ChassisStatus | null) => void;
-  onTouchDrop: (col: ChassisStatus) => void;
+  onTouchDragOver: (col: Phase | null) => void;
+  onTouchDrop: (col: Phase) => void;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const cbs = useRef({ onDragStart, onDragEnd, onTouchDragOver, onTouchDrop, onClick });
@@ -571,7 +545,7 @@ function ChassisCard({
     if (!canInteract || !cardRef.current) return;
     const el = cardRef.current;
     const pressTimer = { id: null as ReturnType<typeof setTimeout> | null };
-    const state = { active: false, startX: 0, startY: 0, currentCol: null as ChassisStatus | null };
+    const state = { active: false, startX: 0, startY: 0, currentCol: null as Phase | null };
     let clone: HTMLDivElement | null = null;
 
     const cleanup = () => {
@@ -618,7 +592,7 @@ function ChassisCard({
       const target = document.elementFromPoint(t.clientX, t.clientY);
       clone.style.display = '';
       const colEl = target?.closest('[data-col-id]') as HTMLElement | null;
-      const colId = (colEl?.dataset.colId ?? null) as ChassisStatus | null;
+      const colId = (colEl?.dataset.colId ?? null) as Phase | null;
       if (colId !== state.currentCol) {
         state.currentCol = colId;
         cbs.current.onTouchDragOver(colId);
@@ -646,9 +620,9 @@ function ChassisCard({
     };
   }, [canInteract]);
   const isOverdue =
-    chassis.commitmentDate &&
-    chassis.status !== 'entregado' &&
-    new Date(chassis.commitmentDate + 'T12:00:00') < new Date();
+    loco.commitmentDate &&
+    loco.phase !== 'despacho' &&
+    new Date(loco.commitmentDate + 'T12:00:00') < new Date();
 
   const formatDate = (d: string) => {
     if (!d) return null;
@@ -658,16 +632,7 @@ function ChassisCard({
     });
   };
 
-  const effectiveServices = chassis.selectedServices.filter(sel => {
-    const svc = SERVICES.find(s => s.id === sel.serviceId);
-    if (!svc) return false;
-    return svc.subOptions ? (sel.selectedSubOptions?.length ?? 0) > 0 : sel.quantity > 0;
-  });
-  const totalServices = effectiveServices.length;
-  const completedCount = (chassis.completedServices ?? []).filter(id =>
-    effectiveServices.some(s => s.serviceId === id)
-  ).length;
-  const pct = totalServices > 0 ? Math.round((completedCount / totalServices) * 100) : 0;
+  const photoCount = loco.photosByPhase[loco.phase]?.length ?? 0;
 
   return (
     <div
@@ -689,11 +654,11 @@ function ChassisCard({
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="min-w-0">
             <p className="font-bold text-white text-sm leading-tight">
-              #{chassis.chassisNumber || '—'}
+              #{loco.serialNumber || '—'}
             </p>
-            {chassis.purchaseOrder && (
-              <span className="text-xs bg-white/[0.06] text-slate-500 px-1.5 py-0.5 rounded-md font-mono mt-0.5 inline-block truncate max-w-[120px]">
-                {chassis.purchaseOrder}
+            {(loco.brand || loco.model) && (
+              <span className="text-xs bg-white/[0.06] text-slate-500 px-1.5 py-0.5 rounded-md mt-0.5 inline-block truncate max-w-[160px]">
+                {[loco.brand, loco.model].filter(Boolean).join(' · ')}
               </span>
             )}
           </div>
@@ -702,21 +667,21 @@ function ChassisCard({
             onMouseDown={e => e.stopPropagation()}
             onClick={e => { e.stopPropagation(); onTogglePriority(); }}
             className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-              chassis.priority
+              loco.priority
                 ? 'bg-orange-400/20 text-orange-400'
                 : 'text-slate-700 hover:text-slate-400 hover:bg-white/[0.05]'
             }`}
-            title={chassis.priority ? 'Quitar prioridad' : 'Marcar como prioridad'}
+            title={loco.priority ? 'Quitar prioridad' : 'Marcar como prioridad'}
           >
             <svg viewBox="0 0 14 14" className="w-3.5 h-3.5" fill="currentColor">
-              <path d="M1 1v12M1 1h9l-2.5 4L10 9H1V1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill={chassis.priority ? 'currentColor' : 'none'} />
+              <path d="M1 1v12M1 1h9l-2.5 4L10 9H1V1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill={loco.priority ? 'currentColor' : 'none'} />
             </svg>
           </button>
           )}
         </div>
 
         {/* Date */}
-        {chassis.commitmentDate && (
+        {loco.commitmentDate && (
           <div
             className={`flex items-center gap-1 text-xs mb-2 ${
               isOverdue ? 'text-red-400 font-medium' : 'text-slate-600'
@@ -725,30 +690,15 @@ function ChassisCard({
             <span>{isOverdue ? '⚠️' : '📅'}</span>
             <span>
               {isOverdue ? 'Vencía ' : 'Entrega '}
-              {formatDate(chassis.commitmentDate)}
+              {formatDate(loco.commitmentDate)}
             </span>
           </div>
         )}
 
-        {/* Progress bar */}
-        {totalServices > 0 && (
-          <div className="mb-2.5">
-            <div className="flex items-center justify-between text-[10px] mb-1">
-              <span className="text-slate-600">{completedCount} de {totalServices} servicios</span>
-              <span className={pct === 100 ? 'text-emerald-400 font-bold' : 'text-slate-500'}>{pct}%</span>
-            </div>
-            <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${pct}%`, background: pct === 100 ? '#4ade80' : pct > 50 ? '#f97316' : '#60a5fa' }}
-              />
-            </div>
-          </div>
-        )}
         {/* Footer */}
-        <div className="flex items-center pt-2.5 border-t border-white/[0.05]">
+        <div className="flex items-center justify-between pt-2.5 border-t border-white/[0.05]">
           <span className="text-xs text-slate-700">
-            {SIZE_LABELS[chassis.size]?.split(' ')[0] ?? chassis.size}
+            {photoCount > 0 ? `📷 ${photoCount}` : 'Sin fotos en esta fase'}
           </span>
         </div>
       </div>
@@ -756,56 +706,45 @@ function ChassisCard({
   );
 }
 
-// ─── Add Chassis Modal ────────────────────────────────────────────────────────
+// ─── Add Locomotora Modal ─────────────────────────────────────────────────────
 
 const inp =
   'w-full bg-[#1a2235] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/40 transition-all [color-scheme:dark]';
 
-function AddChassisModal({
+function AddLocomotoraModal({
   onAdd,
   onClose,
 }: {
-  onAdd: (data: Omit<Chassis, 'id' | 'createdAt'>) => void;
+  onAdd: (data: Omit<Locomotora, 'id' | 'createdAt'>) => void;
   onClose: () => void;
 }) {
-  const [chassisNumber, setChassisNumber] = useState('');
-  const [size, setSize] = useState<ChassisSize>('pequeño');
-  const [condition, setCondition] = useState<ChassisCondition>('moderado');
-  const [patio, setPatio] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
+  const [model, setModel] = useState('');
+  const [brand, setBrand] = useState('');
   const [notes, setNotes] = useState('');
-  const [photoBefore, setPhotoBefore] = useState<string>('');
+  const [photoArribo, setPhotoArribo] = useState<string>('');
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    compressImage(file).then(setPhotoBefore);
+    compressImage(file).then(setPhotoArribo);
     e.target.value = '';
   };
 
   const save = () => {
-    if (!chassisNumber.trim()) return false;
+    if (!serialNumber.trim()) return false;
+    const photosByPhase = emptyPhotosByPhase();
+    if (photoArribo) photosByPhase.arribo = [photoArribo];
     onAdd({
-      chassisNumber,
-      size,
-      condition,
-      patio,
+      serialNumber,
+      model,
+      brand,
       notes,
-      status: 'recibido',
-      clientName: '',
-      purchaseOrder: '',
-      photosBefore: photoBefore ? [photoBefore] : [],
-      photosDetail: [],
-      photosAfter: [],
-      selectedServices: [],
-      finalPrice: null,
+      phase: 'arribo',
+      photosByPhase,
       commitmentDate: '',
       deliveryDate: '',
       requestedBy: '',
-      pdfPurchaseOrder: '',
-      pdfPurchaseOrderName: '',
-      pdfQuotation: '',
-      pdfQuotationName: '',
-      completedServices: [],
       priority: false,
     });
     return true;
@@ -828,36 +767,41 @@ function AddChassisModal({
           className="px-5 py-4 border-b border-white/[0.06] shrink-0"
           style={{ background: 'linear-gradient(135deg, #1e0a3c 0%, #0c1e4a 100%)' }}
         >
-          <h2 className="text-white font-bold text-base tracking-tight">Registrar nuevo chasis</h2>
-          <p className="text-purple-300/50 text-xs mt-0.5">Información inicial del chasis</p>
+          <h2 className="text-white font-bold text-base tracking-tight">Registrar nueva locomotora</h2>
+          <p className="text-purple-300/50 text-xs mt-0.5">Información inicial de la locomotora</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
           <div>
-            <Label text="Número de Chasis" required />
+            <Label text="Número de Serie" required />
             <input
               className={inp}
-              value={chassisNumber}
-              onChange={e => setChassisNumber(e.target.value)}
-              placeholder="ej. CH-2024-001"
+              value={serialNumber}
+              onChange={e => setSerialNumber(e.target.value)}
+              placeholder="ej. LOC-2024-001"
               required
               autoFocus
             />
           </div>
 
           <div>
-            <Label text="Tamaño" />
-            <PillGrid value={size} onChange={v => setSize(v as ChassisSize)} options={SIZE_OPTIONS} />
+            <Label text="Modelo" />
+            <input
+              className={inp}
+              value={model}
+              onChange={e => setModel(e.target.value)}
+              placeholder="ej. GE Dash 9"
+            />
           </div>
 
           <div>
-            <Label text="Condición general" />
-            <PillGrid value={condition} onChange={v => setCondition(v as ChassisCondition)} options={CONDITION_OPTIONS} />
-          </div>
-
-          <div>
-            <Label text="Patio" />
-            <SelectDropdown value={patio} onChange={setPatio} options={PATIO_OPTIONS} placeholder="Seleccionar patio..." />
+            <Label text="Marca" />
+            <input
+              className={inp}
+              value={brand}
+              onChange={e => setBrand(e.target.value)}
+              placeholder="ej. General Electric"
+            />
           </div>
 
           <div>
@@ -872,14 +816,14 @@ function AddChassisModal({
           </div>
 
           <div>
-            <Label text="Foto del antes" />
-            {photoBefore ? (
+            <Label text="Foto de arribo" />
+            {photoArribo ? (
               <div className="relative group rounded-xl overflow-hidden border border-white/[0.08]" style={{ aspectRatio: '16/7' }}>
-                <img src={photoBefore} alt="Foto antes" className="w-full h-full object-cover" />
+                <img src={photoArribo} alt="Foto de arribo" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center">
                   <button
                     type="button"
-                    onClick={() => setPhotoBefore('')}
+                    onClick={() => setPhotoArribo('')}
                     className="opacity-0 group-hover:opacity-100 bg-red-500 text-white text-xs px-3 py-1.5 rounded-lg transition-opacity font-semibold"
                   >
                     Eliminar foto
@@ -893,7 +837,7 @@ function AddChassisModal({
                   <circle cx="12" cy="13" r="4"/>
                 </svg>
                 <div>
-                  <p className="text-xs text-slate-500 font-medium">Click para subir foto del antes</p>
+                  <p className="text-xs text-slate-500 font-medium">Click para subir foto de arribo</p>
                   <p className="text-[10px] text-slate-700 mt-0.5">JPG, PNG</p>
                 </div>
                 <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />

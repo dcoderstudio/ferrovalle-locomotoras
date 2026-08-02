@@ -1,12 +1,13 @@
-import type { Chassis } from '../types';
+import type { Locomotora, Phase } from '../types';
+import { emptyPhotosByPhase } from '../types';
 
 export function isConfigured(): boolean {
   return !!(process.env.NEXT_PUBLIC_SUPABASE_URL);
 }
 
-export async function loadChassis(): Promise<Chassis[] | null> {
+export async function loadLocomotoras(): Promise<Locomotora[] | null> {
   try {
-    const res = await fetch('/api/chassis', { cache: 'no-store' });
+    const res = await fetch('/api/locomotoras', { cache: 'no-store' });
     if (!res.ok) return null;
     const data = await res.json();
     return Array.isArray(data) ? data : null;
@@ -16,17 +17,15 @@ export async function loadChassis(): Promise<Chassis[] | null> {
   }
 }
 
-async function saveChassisPhotos(
+async function saveLocomotoraPhotos(
   id: string,
-  photosBefore: string[],
-  photosDetail: string[],
-  photosAfter: string[]
+  photosByPhase: Record<Phase, string[]>
 ): Promise<boolean> {
   try {
-    const res = await fetch('/api/chassis', {
+    const res = await fetch('/api/locomotoras', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, photosBefore, photosDetail, photosAfter }),
+      body: JSON.stringify({ id, photosByPhase }),
     });
     if (!res.ok) return false;
     const json = await res.json();
@@ -37,26 +36,17 @@ async function saveChassisPhotos(
   }
 }
 
-export async function saveChassis(list: Chassis[]): Promise<boolean> {
-  // 1. Save photos per-chassis first (each request is one chassis — no size limit issues)
-  const chassisWithPhotos = list.filter(
-    c => c.photosBefore.length || c.photosDetail.length || c.photosAfter.length
-  );
+export async function saveLocomotoras(list: Locomotora[]): Promise<boolean> {
+  // 1. Save photos per-locomotora first (each request is one record — no size limit issues)
+  const withPhotos = list.filter(l => Object.values(l.photosByPhase).some(arr => arr.length));
   const photoResults = await Promise.all(
-    chassisWithPhotos.map(c =>
-      saveChassisPhotos(c.id, c.photosBefore, c.photosDetail, c.photosAfter)
-    )
+    withPhotos.map(l => saveLocomotoraPhotos(l.id, l.photosByPhase))
   );
 
   // 2. Save structural list with photos stripped (small payload)
-  const stripped = list.map(c => ({
-    ...c,
-    photosBefore: [] as string[],
-    photosDetail: [] as string[],
-    photosAfter:  [] as string[],
-  }));
+  const stripped = list.map(l => ({ ...l, photosByPhase: emptyPhotosByPhase() }));
   try {
-    const res = await fetch('/api/chassis', {
+    const res = await fetch('/api/locomotoras', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(stripped),
