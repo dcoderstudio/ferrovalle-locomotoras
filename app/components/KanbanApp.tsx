@@ -228,7 +228,7 @@ export default function KanbanApp() {
   const active = locomotoraList.filter(l => l.phase !== 'despacho').length;
   const delivered = locomotoraList.filter(l => l.phase === 'despacho').length;
 
-  const handleDownloadSummary = () => {
+  const handleDownloadSummary = async () => {
     const now = new Date();
     const today = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
     const time = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
@@ -243,12 +243,19 @@ export default function KanbanApp() {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     const finalY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
 
-    doc.setFont('helvetica', 'bold');
+    // Embed the brand's Montserrat font instead of the PDF-standard Helvetica.
+    const { MONTSERRAT_REGULAR_BASE64, MONTSERRAT_BOLD_BASE64 } = await import('../lib/montserrat-fonts');
+    doc.addFileToVFS('Montserrat-Regular.ttf', MONTSERRAT_REGULAR_BASE64);
+    doc.addFont('Montserrat-Regular.ttf', 'Montserrat', 'normal');
+    doc.addFileToVFS('Montserrat-Bold.ttf', MONTSERRAT_BOLD_BASE64);
+    doc.addFont('Montserrat-Bold.ttf', 'Montserrat', 'bold');
+
+    doc.setFont('Montserrat', 'bold');
     doc.setFontSize(18);
     doc.setTextColor(...NAVY);
     doc.text('FERROVALLE', marginX, y);
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Montserrat', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text('Resumen General de Locomotoras', marginX, y + 6);
@@ -263,13 +270,13 @@ export default function KanbanApp() {
     doc.line(marginX, y, pageWidth - marginX, y);
     y += 10;
 
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Montserrat', 'bold');
     doc.setFontSize(15);
     doc.setTextColor(...NAVY);
     doc.text(String(locomotoraList.length), marginX, y);
     doc.text(String(active), marginX + 35, y);
     doc.text(String(delivered), marginX + 70, y);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Montserrat', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(140);
     doc.text('TOTAL', marginX, y + 4.5);
@@ -283,6 +290,7 @@ export default function KanbanApp() {
       head: [['Fase', 'Locomotoras']],
       body: PHASES.map(p => [p.label, String(locomotoraList.filter(l => l.phase === p.id).length)]),
       theme: 'grid',
+      styles: { font: 'Montserrat' },
       headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 9 },
       bodyStyles: { fontSize: 9, textColor: [30, 41, 59] },
       columnStyles: { 1: { halign: 'center', cellWidth: 32 } },
@@ -293,12 +301,12 @@ export default function KanbanApp() {
     const phasesWithItems = PHASES.filter(p => locomotoraList.some(l => l.phase === p.id));
 
     if (phasesWithItems.length === 0) {
-      doc.setFont('helvetica', 'normal');
+      doc.setFont('Montserrat', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(140);
       doc.text('Todavía no hay locomotoras registradas.', marginX, y);
     } else {
-      doc.setFont('helvetica', 'bold');
+      doc.setFont('Montserrat', 'bold');
       doc.setFontSize(11);
       doc.setTextColor(...NAVY);
       doc.text('Detalle por fase', marginX, y);
@@ -310,7 +318,7 @@ export default function KanbanApp() {
 
         doc.setFillColor(...NAVY);
         doc.rect(marginX, y, pageWidth - marginX * 2, 7, 'F');
-        doc.setFont('helvetica', 'bold');
+        doc.setFont('Montserrat', 'bold');
         doc.setFontSize(9.5);
         doc.setTextColor(255, 255, 255);
         doc.text(phase.label.toUpperCase(), marginX + 3, y + 5);
@@ -332,6 +340,7 @@ export default function KanbanApp() {
             l.priority ? 'Sí' : '—',
           ]),
           theme: 'striped',
+          styles: { font: 'Montserrat' },
           headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 7.5 },
           bodyStyles: { fontSize: 9, textColor: [30, 41, 59] },
           margin: { left: marginX, right: marginX },
