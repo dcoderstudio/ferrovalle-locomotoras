@@ -28,6 +28,19 @@ export function emptyPhotosByPhase(): Record<Phase, string[]> {
   }, {} as Record<Phase, string[]>);
 }
 
+export type PhaseService = {
+  id: string;
+  name: string;
+  done: boolean;
+};
+
+export function emptyServicesByPhase(): Record<Phase, PhaseService[]> {
+  return PHASES.reduce((acc, p) => {
+    acc[p.id] = [];
+    return acc;
+  }, {} as Record<Phase, PhaseService[]>);
+}
+
 export type Locomotora = {
   id: string;
   serialNumber: string;
@@ -35,6 +48,7 @@ export type Locomotora = {
   brand: string;
   phase: Phase;
   photosByPhase: Record<Phase, string[]>;
+  servicesByPhase: Record<Phase, PhaseService[]>;
   commitmentDate: string;
   deliveryDate: string;
   notes: string;

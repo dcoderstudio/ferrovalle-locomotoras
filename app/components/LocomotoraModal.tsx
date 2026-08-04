@@ -26,11 +26,15 @@ function compressImage(file: File): Promise<string> {
     img.src = url;
   });
 }
-import type { Locomotora, Phase } from '../types';
+import type { Locomotora, Phase, PhaseService } from '../types';
 import { PHASES } from '../types';
 import { DatePicker } from './FormControls';
 
-type Tab = 'info' | 'fotos';
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+type Tab = 'info' | 'fotos' | 'avance';
 
 const inp =
   'w-full bg-[#1a2235] border border-white/[0.08] rounded-xl px-3 py-2.5 text-base text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/40 transition-all [color-scheme:dark]';
@@ -120,9 +124,38 @@ export default function LocomotoraModal({
     });
   };
 
+  const addService = (phase: Phase, name: string) => {
+    if (!name.trim()) return;
+    const service: PhaseService = { id: generateId(), name: name.trim(), done: false };
+    update({
+      servicesByPhase: {
+        ...data.servicesByPhase,
+        [phase]: [...(data.servicesByPhase[phase] ?? []), service],
+      },
+    });
+  };
+
+  const toggleService = (phase: Phase, id: string) => {
+    update({
+      servicesByPhase: {
+        ...data.servicesByPhase,
+        [phase]: (data.servicesByPhase[phase] ?? []).map(s => s.id === id ? { ...s, done: !s.done } : s),
+      },
+    });
+  };
+
+  const removeService = (phase: Phase, id: string) => {
+    update({
+      servicesByPhase: {
+        ...data.servicesByPhase,
+        [phase]: (data.servicesByPhase[phase] ?? []).filter(s => s.id !== id),
+      },
+    });
+  };
+
   const TABS: Array<{ id: Tab; label: string }> = isTecnico
     ? [{ id: 'fotos', label: 'Fotos' }]
-    : [{ id: 'info', label: 'Información' }, { id: 'fotos', label: 'Fotos' }];
+    : [{ id: 'info', label: 'Información' }, { id: 'avance', label: 'Avance' }, { id: 'fotos', label: 'Fotos' }];
 
   return (
     <div
@@ -189,6 +222,15 @@ export default function LocomotoraModal({
             </div>
           )}
           {activeTab === 'info' && <InfoTab data={data} update={update} />}
+          {activeTab === 'avance' && (
+            <AvanceTab
+              phase={viewedPhase}
+              services={data.servicesByPhase[viewedPhase] ?? []}
+              onAdd={name => addService(viewedPhase, name)}
+              onToggle={id => toggleService(viewedPhase, id)}
+              onRemove={id => removeService(viewedPhase, id)}
+            />
+          )}
           {activeTab === 'fotos' && (
             <FotosTab
               phase={viewedPhase}
@@ -286,6 +328,130 @@ function InfoTab({ data, update }: { data: Locomotora; update: (f: Partial<Locom
           />
         </Field>
       </div>
+    </div>
+  );
+}
+
+// ─── Avance Tab ───────────────────────────────────────────────────────────────
+
+function AvanceTab({
+  phase,
+  services,
+  onAdd,
+  onToggle,
+  onRemove,
+}: {
+  phase: Phase;
+  services: PhaseService[];
+  onAdd: (name: string) => void;
+  onToggle: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const label = PHASES.find(p => p.id === phase)?.label ?? phase;
+  const [newName, setNewName] = useState('');
+
+  const total = services.length;
+  const done = services.filter(s => s.done).length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    onAdd(newName);
+    setNewName('');
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <h3 className="font-semibold text-white text-sm">Avance — {label}</h3>
+          <p className="text-xs text-slate-600 mt-0.5">Servicios a realizar en esta fase</p>
+        </div>
+        {total > 0 && (
+          <div className="text-right shrink-0">
+            <span className={`text-sm font-bold ${pct === 100 ? 'text-emerald-400' : 'text-violet-300'}`}>{pct}%</span>
+            <p className="text-[10px] text-slate-600">{done} de {total}</p>
+          </div>
+        )}
+      </div>
+
+      {total > 0 && (
+        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden mt-3 mb-5">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${pct}%`, background: pct === 100 ? '#4ade80' : '#8b5cf6' }}
+          />
+        </div>
+      )}
+
+      <form onSubmit={submit} className="flex gap-2 mb-4 mt-4">
+        <input
+          className={inp}
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          placeholder="ej. Cambio de balatas, revisión eléctrica..."
+        />
+        <button
+          type="submit"
+          disabled={!newName.trim()}
+          className="px-4 py-2.5 text-white text-sm font-semibold rounded-xl transition-all hover:opacity-90 active:scale-95 disabled:opacity-40 shrink-0"
+          style={{ background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)' }}
+        >
+          Agregar
+        </button>
+      </form>
+
+      {services.length > 0 ? (
+        <div className="space-y-2">
+          {services.map(s => (
+            <div
+              key={s.id}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                s.done ? 'border-emerald-400/30' : 'border-white/[0.06] hover:border-white/[0.12]'
+              }`}
+              style={{ background: s.done ? 'rgba(74,222,128,0.06)' : '#141b2d' }}
+            >
+              <button
+                type="button"
+                onClick={() => onToggle(s.id)}
+                className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all"
+                style={{
+                  background: s.done ? '#4ade80' : 'rgba(255,255,255,0.07)',
+                  border: s.done ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                }}
+              >
+                {s.done && (
+                  <svg viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="2.5" className="w-3 h-3">
+                    <polyline points="1.5 5 4 7.5 8.5 2" />
+                  </svg>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggle(s.id)}
+                className={`flex-1 min-w-0 text-left text-sm font-medium truncate transition-all ${s.done ? 'line-through opacity-50' : ''}`}
+                style={{ color: s.done ? '#4ade80' : '#cbd5e1' }}
+              >
+                {s.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => onRemove(s.id)}
+                className="text-slate-700 hover:text-red-400 text-sm shrink-0 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-14 text-center border-2 border-dashed border-white/[0.06] rounded-xl">
+          <span className="text-3xl mb-2 opacity-40">🛠️</span>
+          <p className="text-sm text-slate-500">Sin servicios agregados en esta fase</p>
+          <p className="text-xs text-slate-700 mt-0.5">Agrega arriba los servicios a realizar</p>
+        </div>
+      )}
     </div>
   );
 }

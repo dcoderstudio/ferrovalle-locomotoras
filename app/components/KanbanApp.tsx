@@ -27,7 +27,7 @@ function compressImage(file: File): Promise<string> {
   });
 }
 import type { Locomotora, Phase } from '../types';
-import { PHASES, emptyPhotosByPhase } from '../types';
+import { PHASES, emptyPhotosByPhase, emptyServicesByPhase } from '../types';
 import Image from 'next/image';
 import { loadLocomotoras, saveLocomotoras, isConfigured } from '../lib/supabase';
 import LocomotoraModal from './LocomotoraModal';
@@ -882,6 +882,7 @@ function AddLocomotoraModal({
       notes,
       phase: 'arribo',
       photosByPhase,
+      servicesByPhase: emptyServicesByPhase(),
       commitmentDate: '',
       deliveryDate: '',
       requestedBy: '',
