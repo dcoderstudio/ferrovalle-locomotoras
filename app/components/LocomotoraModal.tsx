@@ -372,6 +372,8 @@ function FotosTab({
   onRemovePhoto: (i: number) => void;
 }) {
   const label = PHASES.find(p => p.id === phase)?.label ?? phase;
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -391,7 +393,12 @@ function FotosTab({
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
           {photos.map((src, i) => (
             <div key={i} className="relative group aspect-square rounded-xl overflow-hidden border border-white/[0.08]">
-              <img src={src} alt={`${label} ${i + 1}`} className="w-full h-full object-cover" />
+              <img
+                src={src}
+                alt={`${label} ${i + 1}`}
+                className="w-full h-full object-cover cursor-zoom-in"
+                onClick={() => setPreviewIdx(i)}
+              />
               <button
                 onClick={() => onRemovePhoto(i)}
                 className="absolute top-1.5 right-1.5 w-7 h-7 bg-red-500 text-white rounded-full text-sm flex items-center justify-center shadow-lg"
@@ -412,6 +419,44 @@ function FotosTab({
           <input type="file" accept="image/*" multiple className="hidden" onChange={onPhotoUpload} />
         </label>
       )}
+
+      {previewIdx !== null && (
+        <ImageLightbox
+          src={photos[previewIdx]}
+          alt={`${label} ${previewIdx + 1}`}
+          onClose={() => setPreviewIdx(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Image Lightbox ───────────────────────────────────────────────────────────
+
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-6 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-5 right-5 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white text-xl flex items-center justify-center transition-colors"
+      >
+        ×
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
+        onClick={e => e.stopPropagation()}
+      />
     </div>
   );
 }
