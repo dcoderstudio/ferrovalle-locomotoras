@@ -49,19 +49,6 @@ export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
           {USER.name}
         </span>
       </button>
-
-      {/* Manual link */}
-      <a
-        href="/manual.html"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-14 flex items-center gap-2 text-slate-600 hover:text-slate-300 text-xs transition-colors group"
-      >
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity">
-          <path d="M4 4h12v12H4V4z M4 8h12 M8 4v12" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span className="tracking-wide uppercase" style={{ fontSize: '10px', letterSpacing: '0.1em' }}>Manual de usuario</span>
-      </a>
     </div>
   );
 }
