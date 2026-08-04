@@ -27,7 +27,7 @@ function compressImage(file: File): Promise<string> {
   });
 }
 import type { Locomotora, Phase, PhaseService } from '../types';
-import { PHASES } from '../types';
+import { PHASES, emptyServicesByPhase } from '../types';
 import { DatePicker } from './FormControls';
 
 function generateId(): string {
@@ -54,7 +54,10 @@ export default function LocomotoraModal({
 }) {
   const isTecnico = userRole === 'diagnostico';
   const [notice, setNotice] = useState<string>('');
-  const [data, setData] = useState<Locomotora>(loco);
+  const [data, setData] = useState<Locomotora>({
+    ...loco,
+    servicesByPhase: loco.servicesByPhase ?? emptyServicesByPhase(),
+  });
   const [activeTab, setActiveTab] = useState<Tab>(isTecnico ? 'fotos' : 'info');
   const currentIdx = PHASES.findIndex(p => p.id === data.phase);
   const [viewedPhase, setViewedPhase] = useState<Phase>(loco.phase);
