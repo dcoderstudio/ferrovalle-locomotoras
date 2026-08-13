@@ -29,6 +29,7 @@ function compressImage(file: File): Promise<string> {
 import type { Locomotora, Phase, PhaseService } from '../types';
 import { PHASES, emptyServicesByPhase } from '../types';
 import { DatePicker } from './FormControls';
+import { downloadLocomotoraStatusPdf } from '../lib/locomotoraReport';
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -207,12 +208,26 @@ export default function LocomotoraModal({
                 {[data.brand, data.model].filter(Boolean).join(' · ') || 'Sin marca/modelo asignado'}
               </p>
             </div>
-            <button
-              onClick={handleClose}
-              className="text-white/30 hover:text-white transition-colors text-2xl leading-none w-8 h-8 flex items-center justify-center shrink-0"
-            >
-              ×
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => downloadLocomotoraStatusPdf(data)}
+                className="flex items-center gap-1.5 text-purple-200/70 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/[0.10] hover:border-white/25 hover:bg-white/[0.05] transition-all shrink-0"
+                title="Descargar estatus de la locomotora en PDF"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span className="hidden sm:inline">Descargar estatus</span>
+              </button>
+              <button
+                onClick={handleClose}
+                className="text-white/30 hover:text-white transition-colors text-2xl leading-none w-8 h-8 flex items-center justify-center shrink-0"
+              >
+                ×
+              </button>
+            </div>
           </div>
         </div>
 

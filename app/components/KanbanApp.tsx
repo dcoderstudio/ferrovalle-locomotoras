@@ -35,6 +35,7 @@ import { getSession, clearSession, hashPassword, type Session } from '../lib/aut
 import LoginScreen from './LoginScreen';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { downloadLocomotoraStatusPdf } from '../lib/locomotoraReport';
 
 type ColumnConfig = {
   id: Phase;
@@ -817,22 +818,36 @@ function LocomotoraCard({
               </span>
             )}
           </div>
-          {canInteract && (
-          <button
-            onMouseDown={e => e.stopPropagation()}
-            onClick={e => { e.stopPropagation(); onTogglePriority(); }}
-            className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-              loco.priority
-                ? 'bg-orange-400/20 text-orange-400'
-                : 'text-slate-700 hover:text-slate-400 hover:bg-white/[0.05]'
-            }`}
-            title={loco.priority ? 'Quitar prioridad' : 'Marcar como prioridad'}
-          >
-            <svg viewBox="0 0 14 14" className="w-3.5 h-3.5" fill="currentColor">
-              <path d="M1 1v12M1 1h9l-2.5 4L10 9H1V1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill={loco.priority ? 'currentColor' : 'none'} />
-            </svg>
-          </button>
-          )}
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); downloadLocomotoraStatusPdf(loco); }}
+              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all text-slate-700 hover:text-violet-400 hover:bg-white/[0.05]"
+              title="Descargar estatus"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </button>
+            {canInteract && (
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); onTogglePriority(); }}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                loco.priority
+                  ? 'bg-orange-400/20 text-orange-400'
+                  : 'text-slate-700 hover:text-slate-400 hover:bg-white/[0.05]'
+              }`}
+              title={loco.priority ? 'Quitar prioridad' : 'Marcar como prioridad'}
+            >
+              <svg viewBox="0 0 14 14" className="w-3.5 h-3.5" fill="currentColor">
+                <path d="M1 1v12M1 1h9l-2.5 4L10 9H1V1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill={loco.priority ? 'currentColor' : 'none'} />
+              </svg>
+            </button>
+            )}
+          </div>
         </div>
 
         {/* Date */}
