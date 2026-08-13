@@ -127,9 +127,15 @@ export default function LocomotoraModal({
     });
   };
 
-  const addService = (phase: Phase, name: string) => {
-    if (!name.trim()) return;
-    const service: PhaseService = { id: generateId(), name: name.trim(), done: false };
+  const addService = (phase: Phase, input: { name: string; description?: string; image?: string }) => {
+    if (!input.name.trim()) return;
+    const service: PhaseService = {
+      id: generateId(),
+      name: input.name.trim(),
+      description: input.description?.trim() || undefined,
+      image: input.image || undefined,
+      done: false,
+    };
     update({
       servicesByPhase: {
         ...data.servicesByPhase,
@@ -229,7 +235,7 @@ export default function LocomotoraModal({
             <AvanceTab
               phase={viewedPhase}
               services={data.servicesByPhase[viewedPhase] ?? []}
-              onAdd={name => addService(viewedPhase, name)}
+              onAdd={input => addService(viewedPhase, input)}
               onToggle={id => toggleService(viewedPhase, id)}
               onRemove={id => removeService(viewedPhase, id)}
             />
@@ -346,22 +352,34 @@ function AvanceTab({
 }: {
   phase: Phase;
   services: PhaseService[];
-  onAdd: (name: string) => void;
+  onAdd: (input: { name: string; description?: string; image?: string }) => void;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
   const label = PHASES.find(p => p.id === phase)?.label ?? phase;
   const [newName, setNewName] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newImage, setNewImage] = useState('');
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
 
   const total = services.length;
   const done = services.filter(s => s.done).length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
+  const handleImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    compressImage(file).then(setNewImage);
+    e.target.value = '';
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    onAdd(newName);
+    onAdd({ name: newName, description: newDescription, image: newImage });
     setNewName('');
+    setNewDescription('');
+    setNewImage('');
   };
 
   return (
@@ -388,21 +406,49 @@ function AvanceTab({
         </div>
       )}
 
-      <form onSubmit={submit} className="flex gap-2 mb-4 mt-4">
+      <form onSubmit={submit} className="p-3 rounded-xl border border-white/[0.08] space-y-2.5 mb-5 mt-4" style={{ background: '#141b2d' }}>
         <input
           className={inp}
           value={newName}
           onChange={e => setNewName(e.target.value)}
-          placeholder="ej. Cambio de balatas, revisión eléctrica..."
+          placeholder="Nombre del servicio — ej. Cambio de balatas, revisión eléctrica..."
         />
-        <button
-          type="submit"
-          disabled={!newName.trim()}
-          className="px-4 py-2.5 text-white text-sm font-semibold rounded-xl transition-all hover:opacity-90 active:scale-95 disabled:opacity-40 shrink-0"
-          style={{ background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)' }}
-        >
-          Agregar
-        </button>
+        <textarea
+          className={`${inp} resize-none`}
+          rows={2}
+          value={newDescription}
+          onChange={e => setNewDescription(e.target.value)}
+          placeholder="Descripción (opcional)"
+        />
+
+        {newImage ? (
+          <div className="relative inline-block group rounded-lg overflow-hidden border border-white/[0.08]" style={{ width: 90, height: 90 }}>
+            <img src={newImage} alt="Vista previa" className="w-full h-full object-cover" />
+            <button
+              type="button"
+              onClick={() => setNewImage('')}
+              className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow-lg"
+            >
+              ×
+            </button>
+          </div>
+        ) : (
+          <label className="inline-flex items-center gap-1.5 text-xs bg-white/[0.05] border border-dashed border-white/[0.12] hover:border-white/25 text-slate-400 hover:text-white px-3 py-2 rounded-lg cursor-pointer transition-all">
+            <span>📷</span> Agregar imagen (opcional)
+            <input type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
+          </label>
+        )}
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            disabled={!newName.trim()}
+            className="px-4 py-2.5 text-white text-sm font-semibold rounded-xl transition-all hover:opacity-90 active:scale-95 disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)' }}
+          >
+            Agregar servicio
+          </button>
+        </div>
       </form>
 
       {services.length > 0 ? (
@@ -410,7 +456,7 @@ function AvanceTab({
           {services.map(s => (
             <div
               key={s.id}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
+              className={`w-full flex items-start gap-3 p-3 rounded-xl border transition-all ${
                 s.done ? 'border-emerald-400/30' : 'border-white/[0.06] hover:border-white/[0.12]'
               }`}
               style={{ background: s.done ? 'rgba(74,222,128,0.06)' : '#141b2d' }}
@@ -418,7 +464,7 @@ function AvanceTab({
               <button
                 type="button"
                 onClick={() => onToggle(s.id)}
-                className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all"
+                className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all mt-0.5"
                 style={{
                   background: s.done ? '#4ade80' : 'rgba(255,255,255,0.07)',
                   border: s.done ? 'none' : '1px solid rgba(255,255,255,0.1)',
@@ -433,15 +479,32 @@ function AvanceTab({
               <button
                 type="button"
                 onClick={() => onToggle(s.id)}
-                className={`flex-1 min-w-0 text-left text-sm font-medium truncate transition-all ${s.done ? 'line-through opacity-50' : ''}`}
-                style={{ color: s.done ? '#4ade80' : '#cbd5e1' }}
+                className="flex-1 min-w-0 text-left transition-all"
               >
-                {s.name}
+                <span
+                  className={`text-sm font-medium block truncate ${s.done ? 'line-through opacity-50' : ''}`}
+                  style={{ color: s.done ? '#4ade80' : '#cbd5e1' }}
+                >
+                  {s.name}
+                </span>
+                {s.description && (
+                  <span className={`text-xs text-slate-500 block mt-0.5 ${s.done ? 'line-through opacity-50' : ''}`}>
+                    {s.description}
+                  </span>
+                )}
               </button>
+              {s.image && (
+                <img
+                  src={s.image}
+                  alt={s.name}
+                  onClick={() => setPreviewSrc(s.image!)}
+                  className="w-11 h-11 rounded-lg object-cover border border-white/[0.08] cursor-zoom-in shrink-0"
+                />
+              )}
               <button
                 type="button"
                 onClick={() => onRemove(s.id)}
-                className="text-slate-700 hover:text-red-400 text-sm shrink-0 transition-colors"
+                className="text-slate-700 hover:text-red-400 text-sm shrink-0 transition-colors mt-0.5"
               >
                 ✕
               </button>
@@ -454,6 +517,10 @@ function AvanceTab({
           <p className="text-sm text-slate-500">Sin servicios agregados en esta fase</p>
           <p className="text-xs text-slate-700 mt-0.5">Agrega arriba los servicios a realizar</p>
         </div>
+      )}
+
+      {previewSrc && (
+        <ImageLightbox src={previewSrc} alt="Servicio" onClose={() => setPreviewSrc(null)} />
       )}
     </div>
   );

@@ -31,6 +31,8 @@ export function emptyPhotosByPhase(): Record<Phase, string[]> {
 export type PhaseService = {
   id: string;
   name: string;
+  description?: string;
+  image?: string;
   done: boolean;
 };
 
