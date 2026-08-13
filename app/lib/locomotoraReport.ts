@@ -1,10 +1,12 @@
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type CellHookData } from 'jspdf-autotable';
 import type { Locomotora } from '../types';
 import { PHASES } from '../types';
 
 const NAVY: [number, number, number] = [30, 58, 95];
 const DONE_GREEN: [number, number, number] = [22, 163, 74];
+const ORANGE: [number, number, number] = [249, 115, 22];
+const ORANGE_TINT: [number, number, number] = [255, 237, 213];
 const MARGIN = 14;
 const PAGE_WIDTH = 210;
 const PAGE_BOTTOM = 280;
@@ -157,6 +159,22 @@ export async function downloadLocomotoraStatusPdf(loco: Locomotora): Promise<voi
     bodyStyles: { fontSize: 8.5, textColor: [30, 41, 59] },
     columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
     margin: { left: MARGIN, right: MARGIN },
+    // Green for completed phases; the current phase gets its whole row highlighted so
+    // it's unmistakable at a glance which one it's in.
+    didParseCell: (data: CellHookData) => {
+      if (data.section !== 'body') return;
+      const estado = (data.row.raw as string[])[1];
+      if (estado === 'Completada') {
+        if (data.column.index === 1) {
+          data.cell.styles.textColor = DONE_GREEN;
+          data.cell.styles.fontStyle = 'bold';
+        }
+      } else if (estado === 'Actual') {
+        data.cell.styles.fillColor = ORANGE_TINT;
+        data.cell.styles.fontStyle = 'bold';
+        if (data.column.index === 1) data.cell.styles.textColor = ORANGE;
+      }
+    },
   });
   y = finalY() + 10;
 
