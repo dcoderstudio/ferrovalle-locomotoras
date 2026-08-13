@@ -34,6 +34,20 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
+// Older saved services stored a single `image` string instead of `images: string[]`.
+// Fold that legacy field into the array so the rest of the app only deals with one shape.
+function normalizeServicesByPhase(sbp: Record<Phase, PhaseService[]> | undefined): Record<Phase, PhaseService[]> {
+  const base = sbp ?? emptyServicesByPhase();
+  const result = {} as Record<Phase, PhaseService[]>;
+  for (const p of PHASES) {
+    result[p.id] = (base[p.id] ?? []).map(s => {
+      const legacyImage = (s as unknown as { image?: string }).image;
+      return { ...s, images: s.images ?? (legacyImage ? [legacyImage] : []) };
+    });
+  }
+  return result;
+}
+
 type Tab = 'info' | 'fotos' | 'avance';
 
 const inp =
@@ -56,7 +70,7 @@ export default function LocomotoraModal({
   const [notice, setNotice] = useState<string>('');
   const [data, setData] = useState<Locomotora>({
     ...loco,
-    servicesByPhase: loco.servicesByPhase ?? emptyServicesByPhase(),
+    servicesByPhase: normalizeServicesByPhase(loco.servicesByPhase),
   });
   const [activeTab, setActiveTab] = useState<Tab>(isTecnico ? 'fotos' : 'info');
   const currentIdx = PHASES.findIndex(p => p.id === data.phase);
@@ -364,25 +378,18 @@ function AvanceTab({
 }) {
   const label = PHASES.find(p => p.id === phase)?.label ?? phase;
   const [newName, setNewName] = useState('');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [openServiceId, setOpenServiceId] = useState<string | null>(null);
 
   const total = services.length;
   const done = services.filter(s => s.done).length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const openService = services.find(s => s.id === openServiceId) ?? null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
     onAdd(newName);
     setNewName('');
-  };
-
-  const handleImageFor = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    compressImage(file).then(img => onUpdateService(id, { image: img }));
-    e.target.value = '';
   };
 
   return (
@@ -429,110 +436,68 @@ function AvanceTab({
       {services.length > 0 ? (
         <div className="space-y-2">
           {services.map(s => {
-            const isExpanded = expandedId === s.id;
+            const images = s.images ?? [];
             return (
               <div
                 key={s.id}
-                className={`w-full rounded-xl border transition-all ${
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
                   s.done ? 'border-emerald-400/30' : 'border-white/[0.06] hover:border-white/[0.12]'
                 }`}
                 style={{ background: s.done ? 'rgba(74,222,128,0.06)' : '#141b2d' }}
               >
-                <div className="flex items-center gap-3 p-3">
-                  <button
-                    type="button"
-                    onClick={() => onToggle(s.id)}
-                    className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all"
-                    style={{
-                      background: s.done ? '#4ade80' : 'rgba(255,255,255,0.07)',
-                      border: s.done ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                    }}
-                  >
-                    {s.done && (
-                      <svg viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="2.5" className="w-3 h-3">
-                        <polyline points="1.5 5 4 7.5 8.5 2" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId(isExpanded ? null : s.id)}
-                    className="flex-1 min-w-0 text-left transition-all"
-                  >
-                    <span
-                      className={`text-sm font-medium block truncate ${s.done ? 'line-through opacity-50' : ''}`}
-                      style={{ color: s.done ? '#4ade80' : '#cbd5e1' }}
-                    >
-                      {s.name}
-                    </span>
-                  </button>
-                  {s.image ? (
-                    <img
-                      src={s.image}
-                      alt={s.name}
-                      onClick={() => setPreviewSrc(s.image!)}
-                      className="w-9 h-9 rounded-lg object-cover border border-white/[0.08] cursor-zoom-in shrink-0"
-                    />
-                  ) : (
-                    <label
-                      className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.08] cursor-pointer shrink-0 transition-colors"
-                      title="Agregar foto"
-                    >
-                      <span className="text-sm">📷</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageFor(s.id, e)} />
-                    </label>
+                <button
+                  type="button"
+                  onClick={() => onToggle(s.id)}
+                  className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all"
+                  style={{
+                    background: s.done ? '#4ade80' : 'rgba(255,255,255,0.07)',
+                    border: s.done ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                  }}
+                >
+                  {s.done && (
+                    <svg viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="2.5" className="w-3 h-3">
+                      <polyline points="1.5 5 4 7.5 8.5 2" />
+                    </svg>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onRemove(s.id)}
-                    className="text-slate-700 hover:text-red-400 text-sm shrink-0 transition-colors"
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenServiceId(s.id)}
+                  className="flex-1 min-w-0 text-left transition-all"
+                >
+                  <span
+                    className={`text-sm font-medium block truncate ${s.done ? 'line-through opacity-50' : ''}`}
+                    style={{ color: s.done ? '#4ade80' : '#cbd5e1' }}
                   >
-                    ✕
-                  </button>
-                </div>
-
-                {isExpanded && (
-                  <div className="px-3 pb-3 pt-1 border-t border-white/[0.06] space-y-3">
-                    {/* Descripción */}
-                    {s.description ? (
-                      <button
-                        type="button"
-                        onClick={() => setExpandedId(`edit-desc:${s.id}`)}
-                        className="text-xs text-slate-400 text-left hover:text-slate-300 transition-colors"
-                      >
-                        {s.description}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setExpandedId(`edit-desc:${s.id}`)}
-                        className="text-xs text-violet-400 hover:text-violet-300 font-medium transition-colors"
-                      >
-                        + Agregar descripción
-                      </button>
-                    )}
-
-                    {/* Foto grande dentro del detalle, si ya tiene */}
-                    {s.image && (
-                      <div>
-                        <img
-                          src={s.image}
-                          alt={s.name}
-                          onClick={() => setPreviewSrc(s.image!)}
-                          className="w-24 h-24 rounded-lg object-cover border border-white/[0.08] cursor-zoom-in"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {expandedId === `edit-desc:${s.id}` && (
-                  <DescriptionEditor
-                    initial={s.description ?? ''}
-                    onSave={desc => { onUpdateService(s.id, { description: desc }); setExpandedId(s.id); }}
-                    onCancel={() => setExpandedId(s.id)}
-                  />
-                )}
+                    {s.name}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenServiceId(s.id)}
+                  className="relative w-9 h-9 rounded-lg flex items-center justify-center bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.08] shrink-0 transition-colors overflow-hidden"
+                  title={images.length > 0 ? 'Ver fotos' : 'Agregar foto'}
+                >
+                  {images.length > 0 ? (
+                    <>
+                      <img src={images[0]} alt={s.name} className="w-full h-full object-cover" />
+                      {images.length > 1 && (
+                        <span className="absolute bottom-0 right-0 bg-black/70 text-white text-[9px] font-bold px-1 rounded-tl">
+                          {images.length}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-sm">📷</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRemove(s.id)}
+                  className="text-slate-700 hover:text-red-400 text-sm shrink-0 transition-colors"
+                >
+                  ✕
+                </button>
               </div>
             );
           })}
@@ -545,50 +510,122 @@ function AvanceTab({
         </div>
       )}
 
-      {previewSrc && (
-        <ImageLightbox src={previewSrc} alt="Servicio" onClose={() => setPreviewSrc(null)} />
+      {openService && (
+        <ServiceDetailModal
+          service={openService}
+          onUpdate={patch => onUpdateService(openService.id, patch)}
+          onClose={() => setOpenServiceId(null)}
+        />
       )}
     </div>
   );
 }
 
-function DescriptionEditor({
-  initial,
-  onSave,
-  onCancel,
+function ServiceDetailModal({
+  service,
+  onUpdate,
+  onClose,
 }: {
-  initial: string;
-  onSave: (desc: string) => void;
-  onCancel: () => void;
+  service: PhaseService;
+  onUpdate: (patch: Partial<PhaseService>) => void;
+  onClose: () => void;
 }) {
-  const [value, setValue] = useState(initial);
+  const [description, setDescription] = useState(service.description ?? '');
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const images = service.images ?? [];
+  const MAX = 6;
+
+  const addImages = (files: FileList) => {
+    const available = MAX - images.length;
+    if (available <= 0) return;
+    const toProcess = Array.from(files).slice(0, available);
+    Promise.all(toProcess.map(f => compressImage(f).catch(() => null))).then(results => {
+      const valid = results.filter(Boolean) as string[];
+      if (valid.length > 0) onUpdate({ images: [...images, ...valid] });
+    });
+  };
+
+  const removeImage = (idx: number) => {
+    onUpdate({ images: images.filter((_, i) => i !== idx) });
+  };
+
   return (
-    <div className="px-3 pb-3 pt-1 border-t border-white/[0.06] space-y-2">
-      <textarea
-        className={`${inp} resize-none`}
-        rows={2}
-        autoFocus
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        placeholder="Describe el servicio..."
-      />
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 text-xs text-slate-500 hover:text-white font-medium transition-colors"
+    <div
+      className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm"
+      onClick={e => { e.stopPropagation(); onClose(); }}
+    >
+      <div
+        className="rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col border border-white/[0.08] overflow-hidden"
+        style={{ background: '#0e1420' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div
+          className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between shrink-0"
+          style={{ background: 'linear-gradient(135deg, #1e0a3c 0%, #0c1e4a 100%)' }}
         >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={() => onSave(value)}
-          className="px-3 py-1.5 text-xs text-white font-semibold rounded-lg transition-all hover:opacity-90"
-          style={{ background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)' }}
-        >
-          Guardar
-        </button>
+          <h3 className="text-white font-bold text-base truncate pr-2">{service.name}</h3>
+          <button
+            onClick={onClose}
+            className="text-white/40 hover:text-white text-xl leading-none w-7 h-7 flex items-center justify-center shrink-0"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="p-5 overflow-y-auto flex-1 space-y-5">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Descripción</label>
+            <textarea
+              className={`${inp} resize-none`}
+              rows={3}
+              value={description}
+              onChange={e => { setDescription(e.target.value); onUpdate({ description: e.target.value }); }}
+              placeholder="Describe el servicio..."
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fotos</label>
+              {images.length > 0 && <span className="text-[10px] text-slate-600">{images.length}/{MAX}</span>}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {images.map((src, i) => (
+                <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border border-white/[0.08]">
+                  <img
+                    src={src}
+                    alt={`${service.name} ${i + 1}`}
+                    onClick={() => setPreviewSrc(src)}
+                    className="w-full h-full object-cover cursor-zoom-in"
+                  />
+                  <button
+                    onClick={() => removeImage(i)}
+                    className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow-lg"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {images.length < MAX && (
+                <label className="aspect-square rounded-lg border-2 border-dashed border-white/[0.12] hover:border-white/25 flex items-center justify-center cursor-pointer transition-colors text-slate-500 hover:text-white">
+                  <span className="text-2xl leading-none">+</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={e => { if (e.target.files) addImages(e.target.files); e.target.value = ''; }}
+                  />
+                </label>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
+
+      {previewSrc && (
+        <ImageLightbox src={previewSrc} alt={service.name} onClose={() => setPreviewSrc(null)} />
+      )}
     </div>
   );
 }
@@ -745,11 +782,11 @@ function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClos
 
   return (
     <div
-      className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-6 backdrop-blur-sm"
-      onClick={onClose}
+      className="fixed inset-0 bg-black/90 z-[70] flex items-center justify-center p-6 backdrop-blur-sm"
+      onClick={e => { e.stopPropagation(); onClose(); }}
     >
       <button
-        onClick={onClose}
+        onClick={e => { e.stopPropagation(); onClose(); }}
         className="absolute top-5 right-5 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white text-xl flex items-center justify-center transition-colors"
       >
         ×

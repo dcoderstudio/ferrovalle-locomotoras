@@ -32,7 +32,7 @@ export type PhaseService = {
   id: string;
   name: string;
   description?: string;
-  image?: string;
+  images?: string[];
   done: boolean;
 };
 
