@@ -59,3 +59,19 @@ export async function saveLocomotoras(list: Locomotora[]): Promise<boolean> {
     return false;
   }
 }
+
+// Best-effort save for when the tab is closing/reloading/backgrounding right after an
+// edit — a normal fetch() can get cancelled mid-flight by navigation, but sendBeacon is
+// specifically designed to keep going in that situation. Covers the structural fields
+// (phase, notes, dates, servicesByPhase, etc.) — photos still rely on the debounced
+// saveLocomotoras() above since sendBeacon can only POST, not PATCH.
+export function flushLocomotoras(list: Locomotora[]): void {
+  if (typeof navigator === 'undefined' || !navigator.sendBeacon) return;
+  const stripped = list.map(l => ({ ...l, photosByPhase: emptyPhotosByPhase() }));
+  try {
+    navigator.sendBeacon(
+      '/api/locomotoras',
+      new Blob([JSON.stringify(stripped)], { type: 'application/json' })
+    );
+  } catch {}
+}

@@ -29,7 +29,7 @@ function compressImage(file: File): Promise<string> {
 import type { Locomotora, Phase } from '../types';
 import { PHASES, emptyPhotosByPhase, emptyServicesByPhase } from '../types';
 import Image from 'next/image';
-import { loadLocomotoras, saveLocomotoras, isConfigured } from '../lib/supabase';
+import { loadLocomotoras, saveLocomotoras, flushLocomotoras, isConfigured } from '../lib/supabase';
 import LocomotoraModal from './LocomotoraModal';
 import { getSession, clearSession, hashPassword, type Session } from '../lib/auth';
 import LoginScreen from './LoginScreen';
@@ -176,12 +176,27 @@ export default function KanbanApp() {
     // localStorage: guardar inmediatamente (rápido y local)
     try { localStorage.setItem('ferrovalle-locomotoras', JSON.stringify(locomotoraList)); } catch {}
     if (!isConfigured()) return;
-    // Supabase: debounce 1.5s para no enviar en cada tecla
+    // Supabase: debounce corto para no enviar en cada tecla
     setSyncStatus('syncing');
     const timer = setTimeout(() => {
       saveLocomotoras(locomotoraList).then(ok => setSyncStatus(ok ? 'synced' : 'error'));
-    }, 1500);
+    }, 500);
     return () => clearTimeout(timer);
+  }, [locomotoraList, dataLoaded]);
+
+  // Si el usuario recarga, cierra la pestaña o la manda a segundo plano justo después de
+  // editar, el debounce de arriba puede quedarse a medias (la navegación cancela el
+  // fetch). sendBeacon sí sobrevive a eso, así que lo usamos como respaldo inmediato.
+  useEffect(() => {
+    if (!dataLoaded || !isConfigured()) return;
+    const flush = () => flushLocomotoras(locomotoraList);
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flush(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', flush);
+    };
   }, [locomotoraList, dataLoaded]);
 
   const handleAddLocomotora = (data: Omit<Locomotora, 'id' | 'createdAt'>) => {
